@@ -15,17 +15,25 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { FileDetails } from "@/components/ActionsModalContent";
+import { SupabaseFile } from "@/types";
+import ShareDialogContent from "@/components/ShareDialogContent";
 import { useState, useEffect } from "react";
 import Image from "next/image";
 
 import { actionsDropdownItems } from "@/constants";
-import Link from "next/link";
-import { constructDownloadUrl } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
   deleteFile,
+  getFileDownloadUrlSecure,
   renameFile,
+  shareFileWithEmail,
+  removeFileAccess,
+  getFileSharedUsers,
+  enablePublicLink,
+  disablePublicLink,
+  rotatePublicLinkToken,
 } from "@/lib/actions/file.actions";
 import { usePathname } from "next/navigation";
 
@@ -36,20 +44,59 @@ type FileRecord = {
   type: string;
   size: number;
   created_at: string;
+  owner_id?: string;
+  is_public?: boolean;
+  share_token?: string;
 };
 
-
-const ActionDropdown = ({ file }: { file: FileRecord }) => {
+const ActionDropdown = ({ file, currentUserId }: { file: FileRecord; currentUserId: string }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [action, setAction] = useState<ActionType | null>(null);
+  const [action, setAction] = useState<{ label: string; icon: string; value: string } | null>(null);
   const [name, setName] = useState(file.name);
   const [isLoading, setIsLoading] = useState(false);
+  const [shareEmails, setShareEmails] = useState<string[]>([]);
+  const [sharedUsers, setSharedUsers] = useState<{ shared_with_email: string; created_at: string }[]>([]);
+  const [isPublicLinkEnabled, setIsPublicLinkEnabled] = useState(file.is_public || false);
 
-  // Sync state when file prop changes (essential for correct rename modal content)
+  const handleDownload = async () => {
+    try {
+      const result = await getFileDownloadUrlSecure({ path: file.path });
+
+      if (!result.success || !result.url) {
+        throw new Error("Failed to get download URL");
+      }
+
+      const response = await fetch(result.url);
+      if (!response.ok) {
+        throw new Error("Failed to fetch file");
+      }
+
+      const blob = await response.blob();
+
+      const blobUrl = window.URL.createObjectURL(blob);
+
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = file.name;
+
+      document.body.appendChild(link);
+      link.click();
+
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (error) {
+      console.error("Download failed:", error);
+    }
+  };
+
   useEffect(() => {
     setName(file.name);
-  }, [file.name]);
+    setIsPublicLinkEnabled(file.is_public || false);
+    if (action?.value === "share" && file.id) {
+      getFileSharedUsers(file.id).then(setSharedUsers).catch(console.error);
+    }
+  }, [file.name, file.is_public, file.id, action?.value]);
 
   const path = usePathname();
 
@@ -58,7 +105,6 @@ const ActionDropdown = ({ file }: { file: FileRecord }) => {
     setIsDropdownOpen(false);
     setAction(null);
     setName(file.name);
-    //   setEmails([]);
   };
 
   const handleAction = async () => {
@@ -75,8 +121,14 @@ const ActionDropdown = ({ file }: { file: FileRecord }) => {
         await deleteFile({ fileId: file.id, path: file.path });
         return true;
       },
-};
-
+      share: async () => {
+        for (const email of shareEmails) {
+          if (email) await shareFileWithEmail({ fileId: file.id, email });
+        }
+        setShareEmails([]);
+        return true;
+      },
+    };
 
     success = await actions[action.value as keyof typeof actions]();
 
@@ -84,8 +136,6 @@ const ActionDropdown = ({ file }: { file: FileRecord }) => {
 
     setIsLoading(false);
   };
-
-  
 
   const renderDialogContent = () => {
     if (!action) return null;
@@ -105,13 +155,35 @@ const ActionDropdown = ({ file }: { file: FileRecord }) => {
               onChange={(e) => setName(e.target.value)}
             />
           )}
-          
-          
-          {value === "delete" && (
-            <p className="delete-confirmation">
-              Are you sure you want to delete{` `}
-              <span className="delete-file-name">{file.name}</span>?
-            </p>
+          {value === "details" && (
+            <FileDetails file={file as SupabaseFile} />
+          )}
+
+          {value === "share" && (
+            <ShareDialogContent
+              file={file}
+              shareEmails={shareEmails}
+              setShareEmails={setShareEmails}
+              sharedUsers={sharedUsers}
+              isPublicLinkEnabled={isPublicLinkEnabled}
+              setIsPublicLinkEnabled={setIsPublicLinkEnabled}
+              onShare={handleAction}
+              onRemoveAccess={async (email: string) => {
+                await removeFileAccess({ fileId: file.id, email });
+                setSharedUsers((prev) => prev.filter((u) => u.shared_with_email !== email));
+              }}
+              onTogglePublicLink={async () => {
+                if (isPublicLinkEnabled) {
+                  await disablePublicLink({ fileId: file.id });
+                } else {
+                  await enablePublicLink({ fileId: file.id });
+                }
+                setIsPublicLinkEnabled(!isPublicLinkEnabled);
+              }}
+              onRotatePublicLink={async () => {
+                await rotatePublicLinkToken({ fileId: file.id });
+              }}
+            />
           )}
         </DialogHeader>
         {["rename", "delete"].includes(value) && (
@@ -148,43 +220,39 @@ const ActionDropdown = ({ file }: { file: FileRecord }) => {
             height={34}
           />
         </DropdownMenuTrigger>
-        <DropdownMenuContent>
+        <DropdownMenuContent className="w-56">
           <DropdownMenuLabel className="max-w-[200px] truncate">
             {file.name}
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
-          {actionsDropdownItems.map((actionItem) => (
-            <DropdownMenuItem
-              key={actionItem.value}
-              className="shad-dropdown-item"
-              onClick={() => {
-                setAction(actionItem);
+          {actionsDropdownItems
+            .filter((item) => {
+              if (item.value === "share") {
+                return file.owner_id === currentUserId;
+              }
+              if (["rename", "delete"].includes(item.value)) {
+                return file.owner_id === currentUserId;
+              }
+              return true;
+            })
+            .map((actionItem) => (
+              <DropdownMenuItem
+                key={actionItem.value}
+                className="shad-dropdown-item"
+                onClick={() => {
+                  setAction(actionItem);
 
-                if (
-                  ["rename", "delete", "details"].includes(
-                    actionItem.value,
-                  )
-                ) {
-                  setIsModalOpen(true);
-                }
-              }}
-            >
-              {actionItem.value === "download" ? (
-                <Link
-                  href={constructDownloadUrl(file.path)}
+                  if (
+                    ["rename", "delete", "details", "share"].includes(actionItem.value)
+                  ) {
+                    setIsModalOpen(true);
+                  }
 
-                  download={file.name}
-                  className="flex items-center gap-2"
-                >
-                  <Image
-                    src={actionItem.icon}
-                    alt={actionItem.label}
-                    width={30}
-                    height={30}
-                  />
-                  {actionItem.label}
-                </Link>
-              ) : (
+                  if (actionItem.value === "download") {
+                    handleDownload();
+                  }
+                }}
+              >
                 <div className="flex items-center gap-2">
                   <Image
                     src={actionItem.icon}
@@ -194,9 +262,8 @@ const ActionDropdown = ({ file }: { file: FileRecord }) => {
                   />
                   {actionItem.label}
                 </div>
-              )}
-            </DropdownMenuItem>
-          ))}
+              </DropdownMenuItem>
+            ))}
         </DropdownMenuContent>
       </DropdownMenu>
 
