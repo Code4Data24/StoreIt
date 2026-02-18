@@ -9,7 +9,6 @@ import { useForm } from "react-hook-form";
 
 import { useRouter } from "next/navigation";
 
-
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -28,12 +27,12 @@ type FormType = "sign-in" | "sign-up";
 
 const authFormSchema = (formType: FormType) => {
   return z.object({
-  email: z.string().email(),
-  password: z.string().min(8, "Password must be at least 8 characters"),
-  fullName:
-    formType === "sign-up"
-      ? z.string().min(2).max(50)
-      : z.string().optional(),
+    email: z.string().email(),
+    password: z.string().min(8, "Password must be at least 8 characters"),
+    fullName:
+      formType === "sign-up"
+        ? z.string().min(2).max(50)
+        : z.string().optional(),
   });
 };
 
@@ -49,7 +48,7 @@ const AuthForm = ({ type }: { type: FormType }) => {
     defaultValues: {
       fullName: "",
       email: "",
-      password:"",
+      password: "",
     },
   });
 
@@ -70,9 +69,12 @@ const AuthForm = ({ type }: { type: FormType }) => {
       if (res?.success) {
         toast({
           title: "Success",
-          description: type === "sign-in" ? "Signed in successfully" : "Account created successfully",
+          description:
+            type === "sign-in"
+              ? "Signed in successfully"
+              : "Account created successfully",
         });
-        
+
         router.push("/");
         router.refresh();
       } else {
@@ -95,7 +97,6 @@ const AuthForm = ({ type }: { type: FormType }) => {
     }
   };
 
-
   return (
     <>
       <Form {...form}>
@@ -103,6 +104,7 @@ const AuthForm = ({ type }: { type: FormType }) => {
           <h1 className="form-title">
             {type === "sign-in" ? "Sign In" : "Sign Up"}
           </h1>
+
           {type === "sign-up" && (
             <FormField
               control={form.control}
@@ -110,7 +112,9 @@ const AuthForm = ({ type }: { type: FormType }) => {
               render={({ field }) => (
                 <FormItem>
                   <div className="shad-form-item">
-                    <FormLabel className="shad-form-label">Full Name</FormLabel>
+                    <FormLabel className="shad-form-label">
+                      Full Name
+                    </FormLabel>
 
                     <FormControl>
                       <Input
@@ -148,7 +152,8 @@ const AuthForm = ({ type }: { type: FormType }) => {
               </FormItem>
             )}
           />
-            <FormField
+
+          <FormField
             control={form.control}
             name="password"
             render={({ field }) => (
@@ -171,7 +176,6 @@ const AuthForm = ({ type }: { type: FormType }) => {
             )}
           />
 
-
           <Button
             type="submit"
             className="form-submit-button"
@@ -190,7 +194,9 @@ const AuthForm = ({ type }: { type: FormType }) => {
             )}
           </Button>
 
-          {errorMessage && <p className="error-message">*{errorMessage}</p>}
+          {errorMessage && (
+            <p className="error-message">*{errorMessage}</p>
+          )}
 
           <div className="body-2 flex justify-center">
             <p className="text-light-100">
@@ -208,8 +214,6 @@ const AuthForm = ({ type }: { type: FormType }) => {
           </div>
         </form>
       </Form>
-
-      
     </>
   );
 };
