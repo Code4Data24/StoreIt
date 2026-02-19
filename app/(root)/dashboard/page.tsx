@@ -3,17 +3,19 @@ import Link from "next/link";
 
 import ActionDropdown from "@/components/ActionDropdown";
 import { Chart } from "@/components/Chart";
-import { FormattedDateTime } from "@/components/FormattedDateTime";
+import FormattedDateTime from "@/components/FormattedDateTime";
 import { Thumbnail } from "@/components/Thumbnail";
 import { Separator } from "@/components/ui/separator";
 
 import { getFiles, getTotalSpaceUsed } from "@/lib/actions/file.actions";
-import { constructDownloadUrl, convertFileSize, getUsageSummary } from "@/lib/utils";
+import { getCurrentUser } from "@/lib/actions/user.actions";
+import { convertFileSize, getUsageSummary } from "@/lib/utils";
 
 const Dashboard = async () => {
-  const [files, totalSpace] = await Promise.all([
+  const [files, totalSpace, currentUser] = await Promise.all([
     getFiles({}),
     getTotalSpaceUsed(),
+    getCurrentUser(),
   ]);
 
   const usageSummary = getUsageSummary(files);
@@ -61,29 +63,44 @@ const Dashboard = async () => {
         <h2 className="h3 xl:h2 text-light-100">Recent files uploaded</h2>
 
         {files.length > 0 ? (
-  <ul className="mt-5 flex flex-col gap-5">
-    {files.slice(0, 5).map((file: any) => (
-      <Link
-        key={file.id}
-        href={constructDownloadUrl(file.path)}
-        target="_blank"
-        className="flex items-center gap-3"
-      >
-        <Thumbnail
-          type={file.type}
-          extension={file.extension}
-          url={constructDownloadUrl(file.path)}
-        />
-
-        <div className="recent-file-details">
-          <p className="recent-file-name">{file.name}</p>
-        </div>
-      </Link>
-    ))}
-  </ul>
-) : (
-  <p className="empty-list">No files uploaded</p>
-)}
+          <ul className="mt-5 flex flex-col gap-5">
+            {files.slice(0, 5).map((file: any) =>
+              file.url ? (
+                <Link
+                  key={file.id}
+                  href={file.url}
+                  target="_blank"
+                  className="flex items-center gap-3"
+                >
+                  <Thumbnail
+                    type={file.type}
+                    extension={file.extension}
+                    url={file.url}
+                  />
+                  <div className="recent-file-details">
+                    <p className="recent-file-name">{file.name}</p>
+                  </div>
+                </Link>
+              ) : (
+                <div
+                  key={file.id}
+                  className="flex items-center gap-3 opacity-60"
+                >
+                  <Thumbnail
+                    type={file.type}
+                    extension={file.extension}
+                    url={null}
+                  />
+                  <div className="recent-file-details">
+                    <p className="recent-file-name">{file.name}</p>
+                  </div>
+                </div>
+              ),
+            )}
+          </ul>
+        ) : (
+          <p className="empty-list">No files uploaded</p>
+        )}
 
       </section>
     </div>
