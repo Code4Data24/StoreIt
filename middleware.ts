@@ -42,8 +42,9 @@ export async function middleware(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
 
   const isAuthPage = req.nextUrl.pathname.startsWith("/sign-in") || req.nextUrl.pathname.startsWith("/sign-up");
+  const isPublicShareRoute = req.nextUrl.pathname.startsWith("/share/");
   
-  if (!user && !isAuthPage) {
+  if (!user && !isAuthPage && !isPublicShareRoute) {
     return NextResponse.redirect(new URL("/sign-in", req.url));
   }
 
@@ -55,5 +56,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|assets).*)"],
 };
