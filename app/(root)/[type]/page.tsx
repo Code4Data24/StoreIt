@@ -3,6 +3,7 @@ import Sort from "@/components/Sort";
 import Card from "@/components/Card";
 import { convertFileSize, getFileTypesParams } from "@/lib/utils";
 import { getFiles } from "@/lib/actions/file.actions";
+import { getCurrentUser } from "@/lib/actions/user.actions";
 
 const Page = async ({ searchParams, params }: SearchParamProps) => {
   const type = ((await params)?.type as string) || "";
@@ -10,7 +11,10 @@ const Page = async ({ searchParams, params }: SearchParamProps) => {
   const sort = ((await searchParams)?.sort as string) || "";
 
   const types = getFileTypesParams(type) as FileType[];
-  const files = await getFiles({ type: types[0], searchText, sort });
+  const [files, currentUser] = await Promise.all([
+    getFiles({ type: types[0], search: searchText }),
+    getCurrentUser(),
+  ]);
 
   const totalSize = files.reduce((acc: number, file: any) => acc + file.size, 0);
 
@@ -34,7 +38,7 @@ const Page = async ({ searchParams, params }: SearchParamProps) => {
       {files.length > 0 ? (
         <section className="file-list">
           {files.map((file: any) => (
-            <Card key={file.id} file={file} />
+            <Card key={file.id} file={file} currentUserId={currentUser.id} />
           ))}
         </section>
       ) : (
