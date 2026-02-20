@@ -1,6 +1,6 @@
 import React from "react";
 import Card from "@/components/Card";
-import { getFilesSharedWithMe } from "@/lib/actions/file.actions";
+import { getFilesSharedWithMe } from "@/lib/actions";
 import { getCurrentUser } from "@/lib/actions/user.actions";
 
 const SharedWithMePage = async () => {

@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { getPublicSignedUrlByToken } from "@/lib/actions/file.actions";
+import { getPublicSignedUrlByToken } from "@/lib/actions";
 import { notFound } from "next/navigation";
 import Thumbnail from "@/components/Thumbnail";
 import FormattedDateTime from "@/components/FormattedDateTime";

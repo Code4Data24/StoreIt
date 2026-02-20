@@ -8,6 +8,8 @@ declare interface ActionType {
   value: string;
 }
 
+
+
 declare interface SearchParamProps {
   params?: Promise<SegmentParams>;
   searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
@@ -19,6 +21,8 @@ declare interface GetFilesProps {
   sort?: string;
   limit?: number;
 }
+
+
 declare interface RenameFileProps {
   fileId: string;
   name: string;
@@ -43,6 +47,9 @@ declare interface SidebarProps {
   avatar: string;
   email: string;
 }
+
+
+
 
 declare interface ThumbnailProps {
   type: string;

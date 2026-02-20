@@ -34,7 +34,7 @@ import {
   enablePublicLink,
   disablePublicLink,
   rotatePublicLinkToken,
-} from "@/lib/actions/file.actions";
+} from "@/lib/actions";
 import { usePathname } from "next/navigation";
 
 type FileRecord = {

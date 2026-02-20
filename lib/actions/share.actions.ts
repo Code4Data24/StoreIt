@@ -5,6 +5,7 @@ import { createSupabaseServiceRoleClient } from "@/lib/supabase/service-role";
 import { getCurrentUser } from "@/lib/actions/user.actions";
 import { parseStringify } from "@/lib/utils";
 import { revalidatePath } from "next/cache";
+import { cache } from "react";
 
 export const shareFileWithEmail = async ({
   fileId,
