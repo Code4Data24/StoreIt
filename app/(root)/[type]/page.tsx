@@ -4,6 +4,7 @@ import Card from "@/components/Card";
 import { convertFileSize, getFileTypesParams } from "@/lib/utils";
 import { getFiles } from "@/lib/actions/file.actions";
 import { getCurrentUser } from "@/lib/actions/user.actions";
+import { redirect } from "next/navigation";
 
 const Page = async ({ searchParams, params }: SearchParamProps) => {
   const type = ((await params)?.type as string) || "";
@@ -15,6 +16,10 @@ const Page = async ({ searchParams, params }: SearchParamProps) => {
     getFiles({ type: types[0], search: searchText }),
     getCurrentUser(),
   ]);
+
+  if (!currentUser) {
+    redirect("/sign-in");
+  }
 
   const totalSize = files.reduce((acc: number, file: any) => acc + file.size, 0);
 
