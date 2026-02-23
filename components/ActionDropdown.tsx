@@ -15,6 +15,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+
 import { FileDetails } from "@/components/ActionsModalContent";
 import { SupabaseFile } from "@/types";
 import ShareDialogContent from "@/components/ShareDialogContent";

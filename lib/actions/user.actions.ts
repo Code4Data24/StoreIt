@@ -82,8 +82,14 @@ export const getCurrentUser = async () => {
     return {
       id: user.id,
       email: user.email,
-      fullName: user.user_metadata?.full_name ?? null,
-      avatar: user.user_metadata?.avatar ?? null,
+      fullName:
+        user.user_metadata?.full_name ||
+        user.user_metadata?.name ||
+        "User",
+      avatar:
+        user.user_metadata?.avatar ||
+        user.user_metadata?.picture ||
+        avatarPlaceholderUrl,
     };
   } catch (error) {
     console.log(error);
