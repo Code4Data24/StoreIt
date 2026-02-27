@@ -1,8 +1,8 @@
-# 📦 StoreIt | Production-Grade Cloud Storage
+#  StoreIt | Production-Grade Cloud Storage
 
 A high-performance file management system built with **Next.js 15** and **Supabase**, featuring **resumable uploads**, **granular security**, and **real-time UI updates**.
 
-[**🌐 Live Demo**](https://storeit-storage.vercel.app) 
+[** Live Demo**](https://storeit-storage.vercel.app) 
 
 https://storeit-storage.vercel.app
 
@@ -19,7 +19,7 @@ https://storeit-storage.vercel.app
 
 ---
 
-### 🏗️ Tech Stack & Architecture
+###  Tech Stack & Architecture
 
 | Layer | Technology | Key Implementation |
 | :--- | :--- | :--- |
