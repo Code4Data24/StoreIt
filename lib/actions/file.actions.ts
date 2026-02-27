@@ -10,333 +10,379 @@ import { cache } from "react";
 
 
 const handleError = (error: unknown, message: string) => {
- console.error(message, error);
- throw error;
+  console.error(message, error);
+  throw error;
 };
 
 
 
 export const uploadFile = async (formData: FormData) => {
- try {
-  const supabase = await createSupabaseServerClient();
-  const currentUser = await getCurrentUser();
-  if (!currentUser) throw new Error("Not authenticated");
+  try {
+    const supabase = await createSupabaseServerClient();
+    const currentUser = await getCurrentUser();
+    if (!currentUser) throw new Error("Not authenticated");
 
 
-  const file = formData.get("file") as File;
-  if (!file) throw new Error("No file provided");
+    const file = formData.get("file") as File;
+    if (!file) throw new Error("No file provided");
 
 
-  const filePath = `${currentUser.id}/${Date.now()}-${file.name}`;
 
 
-  const { error: uploadError } = await supabase.storage
-   .from("files")
-   .upload(filePath, file);
+    const sanitizedName = file.name
+      .replace(/[^a-zA-Z0-9.-]/g, '_')
+      .replace(/_{2,}/g, '_')
+      .slice(0, 100);
+    const filePath = `${currentUser.id}/${Date.now()}-${sanitizedName}`;
 
 
-  if (uploadError) throw uploadError;
+    const { error: uploadError } = await supabase.storage
+      .from("files")
+      .upload(filePath, file);
 
 
-  const fileTypeData = getFileType(file.name);
-  const { data, error } = await supabase
-   .from("files")
-   .insert({
-    name: file.name,
-    size: file.size,
-    type: fileTypeData.type,
-    extension: fileTypeData.extension,
-    path: filePath,
-    owner_id: currentUser.id,
-   })
-   .select()
-   .single();
+    if (uploadError) throw uploadError;
 
 
-  if (error) throw error;
+    const fileTypeData = getFileType(file.name);
+    const { data, error } = await supabase
+      .from("files")
+      .insert({
+        name: file.name,
+        size: file.size,
+        type: fileTypeData.type,
+        extension: fileTypeData.extension,
+        path: filePath,
+        owner_id: currentUser.id,
+      })
+      .select()
+      .single();
 
 
-  revalidatePath("/");
-  return parseStringify({ ...data });
- } catch (error) {
-  handleError(error, "Failed to upload file");
- }
+    if (error) throw error;
+
+
+    revalidatePath("/");
+    return parseStringify({ ...data });
+  } catch (error) {
+    handleError(error, "Failed to upload file");
+  }
 };
 
 
 
 export const getFiles = cache(
- async ({
-  type,
-  search,
-  limit,
- }: {
-  type?: string;
-  search?: string;
-  limit?: number;
- }) => {
-  const supabase = await createSupabaseServerClient();
-  const currentUser = await getCurrentUser();
+  async ({
+    type,
+    search,
+    limit,
+  }: {
+    type?: string;
+    search?: string;
+    limit?: number;
+  }) => {
+    const supabase = await createSupabaseServerClient();
+    const currentUser = await getCurrentUser();
 
 
-  if (!currentUser) return [];
+    if (!currentUser) return [];
 
 
-  let query = supabase
-   .from("files")
-   .select("id, name, path, type, size, created_at, owner_id, is_public, share_token")
-   .eq("owner_id", currentUser.id)
-   .order("created_at", { ascending: false });
-
-
-  if (type) query = query.eq("type", type);
-  if (search) query = query.ilike("name", `%${search}%`);
-  if (limit) query = query.limit(limit);
-
-
-  const { data, error } = await query;
-  if (error) throw error;
-
-
-  const filesWithUrls = await Promise.all(
-   data.map(async (file) => {
-    try {
-     const { data: signedUrlData } = await supabase.storage
+    let query = supabase
       .from("files")
-      .createSignedUrl(file.path, 600); // 10 min
+      .select("id, name, path, type, size, created_at, owner_id, is_public, share_token")
+      .eq("owner_id", currentUser.id)
+      .order("created_at", { ascending: false });
 
 
-     return {
-      ...file,
-      url: signedUrlData?.signedUrl ?? null,
-     };
-    } catch (err) {
-     console.warn("Missing storage object:", file.path);
-     return {
-      ...file,
-      url: null,
-     };
-    }
-   }),
-  );
+    if (type) query = query.eq("type", type);
+    if (search) query = query.ilike("name", `%${search}%`);
+    if (limit) query = query.limit(limit);
 
 
-  return parseStringify(filesWithUrls);
- },
+    const { data, error } = await query;
+    if (error) throw error;
+
+
+    const filesWithUrls = await Promise.all(
+      data.map(async (file) => {
+        try {
+          const { data: signedUrlData } = await supabase.storage
+            .from("files")
+            .createSignedUrl(file.path, 600); // 10 min
+
+
+          return {
+            ...file,
+            url: signedUrlData?.signedUrl ?? null,
+          };
+        } catch (err) {
+          console.warn("Missing storage object:", file.path);
+          return {
+            ...file,
+            url: null,
+          };
+        }
+      }),
+    );
+
+
+    return parseStringify(filesWithUrls);
+  },
 );
 
 
 
 export const renameFile = async ({
- fileId,
- name,
+  fileId,
+  name,
 }: {
- fileId: string;
- name: string;
+  fileId: string;
+  name: string;
 }) => {
- const supabase = await createSupabaseServerClient();
- const currentUser = await getCurrentUser();
-
-
- if (!currentUser) throw new Error("Not authenticated");
-
-
- const { error } = await supabase
-  .from("files")
-  .update({ name })
-  .eq("id", fileId);
-
-
- if (error) throw error;
-
-
- revalidatePath("/");
-};
-
-
-
-export const deleteFile = async ({
- fileId,
- path,
-}: {
- fileId: string;
- path: string;
-}) => {
- const supabase = await createSupabaseServerClient();
- const currentUser = await getCurrentUser();
-
-
- if (!currentUser) throw new Error("Not authenticated");
-
-
- const { error: storageError } = await supabase.storage
-  .from("files")
-  .remove([path]);
-
-
- if (storageError) throw storageError;
-
-
- const { error } = await supabase.from("files").delete().eq("id", fileId);
-
-
- if (error) throw error;
-
-
- revalidatePath("/");
-};
-
-
-
-export const createFileRecord = async ({
- name,
- size,
- type,
- extension,
- path,
- userId,
-}: {
- name: string;
- size: number;
- type: string;
- extension: string;
- path: string;
- userId: string;
-}) => {
- try {
   const supabase = await createSupabaseServerClient();
+  const currentUser = await getCurrentUser();
 
 
-    const { data: existing } = await supabase
-   .from("files")
-   .select("id")
-   .eq("path", path)
-   .maybeSingle();
+  if (!currentUser) throw new Error("Not authenticated");
 
 
-  if (existing) {
-   return parseStringify({ success: true, data: existing });
-  }
+  const { error } = await supabase
+    .from("files")
+    .update({ name })
+    .eq("id", fileId)
+    .eq("owner_id", currentUser.id);
 
-
-  const { data, error } = await supabase
-   .from("files")
-   .insert({
-    name,
-    size,
-    type,
-    extension,
-    path,
-    owner_id: userId,
-   })
-   .select()
-   .single();
 
 
   if (error) throw error;
 
 
   revalidatePath("/");
-  return parseStringify({ success: true, data });
- } catch (error: any) {
-  console.error("Failed to create file record", error);
-  return parseStringify({ success: false, error: error.message });
- }
+};
+
+
+
+export const deleteFile = async ({
+  fileId,
+  path,
+}: {
+  fileId: string;
+  path: string;
+}) => {
+  const supabase = await createSupabaseServerClient();
+  const currentUser = await getCurrentUser();
+
+
+  if (!currentUser) throw new Error("Not authenticated");
+
+
+  const { error: storageError } = await supabase.storage
+    .from("files")
+    .remove([path]);
+
+
+  if (storageError) throw storageError;
+
+
+  const { error } = await supabase
+    .from("files")
+    .delete()
+    .eq("id", fileId)
+    .eq("owner_id", currentUser.id);
+
+
+  if (error) throw error;
+
+
+  revalidatePath("/");
+};
+
+
+
+export const createFileRecord = async ({
+  name,
+  size,
+  type,
+  extension,
+  path,
+  userId,
+}: {
+  name: string;
+  size: number;
+  type: string;
+  extension: string;
+  path: string;
+  userId: string;
+}) => {
+  try {
+    const supabase = await createSupabaseServerClient();
+
+
+    const { data: existing } = await supabase
+      .from("files")
+      .select("id")
+      .eq("path", path)
+      .maybeSingle();
+
+
+    if (existing) {
+      return parseStringify({ success: true, data: existing });
+    }
+
+
+    const { data, error } = await supabase
+      .from("files")
+      .insert({
+        name,
+        size,
+        type,
+        extension,
+        path,
+        owner_id: userId,
+      })
+      .select()
+      .single();
+
+
+    if (error) throw error;
+
+
+    revalidatePath("/");
+    return parseStringify({ success: true, data });
+  } catch (error: any) {
+    console.error("Failed to create file record", error);
+    return parseStringify({ success: false, error: error.message });
+  }
 };
 
 export const getFilePreviewUrl = async ({ path }: { path: string }) => {
- const supabase = await createSupabaseServerClient();
- const currentUser = await getCurrentUser();
- if (!currentUser) throw new Error("Not authenticated");
+  const supabase = await createSupabaseServerClient();
+  const currentUser = await getCurrentUser();
+  if (!currentUser) throw new Error("Not authenticated");
 
 
- const { data, error } = await supabase.storage
-  .from("files")
-  .createSignedUrl(path, 600);
 
+  const { data: fileRecord } = await supabase
+    .from("files")
+    .select("path")
+    .eq("path", path)
+    .eq("owner_id", currentUser.id)
+    .single();
 
- if (error) throw error;
+  if (!fileRecord) {
+    throw new Error("Access denied");
+  }
 
+  const { data, error } = await supabase.storage
+    .from("files")
+    .createSignedUrl(path, 600);
 
- return parseStringify({ success: true, url: data.signedUrl });
+  if (error) throw error;
+
+  return parseStringify({ success: true, url: data.signedUrl });
 };
 
 
 
 export const getFileDownloadUrl = async ({ path }: { path: string }) => {
- try {
-  const supabase = await createSupabaseServerClient();
-  const currentUser = await getCurrentUser();
+  try {
+    const supabase = await createSupabaseServerClient();
+    const currentUser = await getCurrentUser();
 
 
-  if (!currentUser) throw new Error("Not authenticated");
+    if (!currentUser) throw new Error("Not authenticated");
 
 
-  const { data, error } = await supabase.storage
-   .from("files")
-   .createSignedUrl(path, 3600); // 1 hour expiry
+
+    const { data: fileRecord } = await supabase
+      .from("files")
+      .select("path")
+      .eq("path", path)
+      .eq("owner_id", currentUser.id)
+      .single();
+
+    if (!fileRecord) {
+      throw new Error("Access denied");
+    }
+
+    const { data, error } = await supabase.storage
+      .from("files")
+      .createSignedUrl(path, 3600);
 
 
-  if (error) throw error;
+    if (error) throw error;
 
 
-  return parseStringify({ success: true, url: data.signedUrl });
- } catch (error: any) {
-  console.error("Failed to get signed URL", error);
-  return parseStringify({ success: false, error: error.message });
- }
+    return parseStringify({ success: true, url: data.signedUrl });
+  } catch (error: any) {
+    console.error("Failed to get signed URL", error);
+    return parseStringify({ success: false, error: error.message });
+  }
 };
 
 
 
 export const getFileDownloadUrlSecure = async ({ path }: { path: string }) => {
- try {
-  const supabase = await createSupabaseServerClient();
-  const currentUser = await getCurrentUser();
+  try {
+    const supabase = await createSupabaseServerClient();
+    const currentUser = await getCurrentUser();
 
 
-  if (!currentUser) throw new Error("Not authenticated");
+    if (!currentUser) throw new Error("Not authenticated");
 
 
-  const { data, error } = await supabase.storage
-   .from("files")
-   .createSignedUrl(path, 300); // Short 5 min expiry for immediate download
+    
+    const { data: fileRecord } = await supabase
+      .from("files")
+      .select("path")
+      .eq("path", path)
+      .eq("owner_id", currentUser.id)
+      .single();
+
+    if (!fileRecord) {
+      throw new Error("Access denied");
+    }
+
+    const { data, error } = await supabase.storage
+      .from("files")
+      .createSignedUrl(path, 300); 
 
 
-  if (error) throw error;
+    if (error) throw error;
 
 
-  return parseStringify({ success: true, url: data.signedUrl });
- } catch (error: any) {
-  console.error("Failed to get secure download URL", error);
-  return parseStringify({ success: false, error: error.message });
- }
+    return parseStringify({ success: true, url: data.signedUrl });
+  } catch (error: any) {
+    console.error("Failed to get secure download URL", error);
+    return parseStringify({ success: false, error: error.message });
+  }
 };
 
 
 
 export const getTotalSpaceUsed = cache(async () => {
- const supabase = await createSupabaseServerClient();
- const currentUser = await getCurrentUser();
+  const supabase = await createSupabaseServerClient();
+  const currentUser = await getCurrentUser();
 
 
- if (!currentUser) return null;
+  if (!currentUser) return null;
 
 
- const { data, error } = await supabase
-  .from("files")
-  .select("size")
-  .eq("owner_id", currentUser.id);
+  const { data, error } = await supabase
+    .from("files")
+    .select("size")
+    .eq("owner_id", currentUser.id);
 
 
- if (error) throw error;
+  if (error) throw error;
 
 
- const used = (data ?? []).reduce((sum, f) => sum + (f.size || 0), 0);
+  const used = (data ?? []).reduce((sum, f) => sum + (f.size || 0), 0);
 
 
- return {
-  used,
-  all: 2 * 1024 * 1024 * 1024,
- };
+  return {
+    used,
+    all: 2 * 1024 * 1024 * 1024,
+  };
 });
